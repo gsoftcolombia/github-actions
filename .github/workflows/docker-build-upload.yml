@@ -1,5 +1,14 @@
 name: Docker Build & Push
 
+# USAGE:
+# on:
+#   push:
+#     branches:
+#     - main
+#   pull_request:
+#     branches:
+#     - main
+
 on:
   workflow_call:
 
