@@ -1,0 +1,56 @@
+name: "Terraform Plan"
+ 
+on:
+ pull_request:
+   branches:
+   - main
+ 
+env:
+ # verbosity setting for Terraform logs
+ TF_LOG: INFO
+ # Credentials for deployment to AWS
+ AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+ AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+ 
+jobs:
+  tf-plan:
+    name: "Prepare and Plan"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./
+ 
+    steps:
+      - name: Checkout the repository to the runner
+        uses: actions/checkout@v2
+
+      - name: Check linting of Terraform modules
+        uses: devops-infra/action-tflint@v0.3
+        with:
+          tflint_params: "--module --deep"
+          dir_filter: modules
+  
+      - name: Setup Terraform with specified version on the runner
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.0
+
+      - name: Terraform init
+        id: init
+        run: terraform init
+  
+      - name: Terraform format
+        id: fmt
+        run: terraform fmt -check -recursive
+     
+      - name: Terraform validate
+        id: validate
+        run: terraform validate
+  
+      - name: Terraform plan
+        id: plan
+        # if github.event_name == 'pull_request'
+        run: terraform plan -no-color -input=false
+        continue-on-error: false
+  

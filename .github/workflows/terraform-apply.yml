@@ -1,0 +1,38 @@
+name: "Terraform Apply"
+ 
+on:
+ workflow_dispatch:
+
+env:
+ # verbosity setting for Terraform logs
+ TF_LOG: INFO
+ # Credentials for deployment to AWS
+ AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+ AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+ 
+jobs:
+  tf-apply:
+    name: "Apply in Prod"
+    runs-on: ubuntu-latest
+    environment: prod
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./
+    steps:
+      - name: Checkout the repository to the runner
+        uses: actions/checkout@v2
+  
+      - name: Setup Terraform with specified version on the runner
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.0
+
+      - name: Terraform init
+        id: init
+        run: terraform init
+      
+      - name: Terraform apply
+        id: apply
+        run: terraform apply -auto-approve
+        continue-on-error: false
