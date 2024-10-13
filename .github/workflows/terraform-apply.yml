@@ -1,7 +1,11 @@
 name: "Terraform Apply"
  
+# USAGE:
+# on:
+#  workflow_dispatch:
+
 on:
- workflow_dispatch:
+  workflow_call:
 
 env:
  # verbosity setting for Terraform logs
