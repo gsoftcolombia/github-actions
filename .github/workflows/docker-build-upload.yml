@@ -1,6 +1,21 @@
 name: Docker Build & Push
 
-# USAGE:
+# This Action will:
+# - Build a Dockerfile located in the root of the project.
+# - Push the new docker image in an ECR Registry.
+# - Update a task definition with the new docker image tag.
+
+# ##### GITHUB REQUIRED VARS #####
+# AWS_DEFAULT_REGION: Already available in all /gsoftcolombia projects.
+# AWS_ROLE_TO_ASSUME: ARN of the role that aws-actions can assume.
+# REPO_NAME: ECR Repository Name
+# APP_NAME_PREFIX: Prefix of the task definition in AWS.
+# APP_NAME_SUFFIX: Suffix/Postfix of the task definition in AWS.
+#   If the Action is executed from Main, it expects to update a task definition
+#   with the name {APP_NAME_PREFIX}-prod-{APP_NAME_SUFFIX}
+#   otherwise, {APP_NAME_PREFIX}-dev-{APP_NAME_SUFFIX}
+
+# ##### USAGE TEMPLATE #####
 # on:
 #   push:
 #     branches:
@@ -8,6 +23,12 @@ name: Docker Build & Push
 #   pull_request:
 #     branches:
 #     - main
+# env:
+#  AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION }}
+# 
+# jobs:
+#   build-push:
+#     uses: gsoftcolombia/github-actions/.github/workflows/docker-build-upload.yml@main
 
 on:
   workflow_call:
