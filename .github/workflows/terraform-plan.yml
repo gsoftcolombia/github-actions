@@ -19,6 +19,8 @@ name: "Terraform Plan"
 #     - main
 # env:
 #  TF_LOG: INFO
+#  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 # 
 # jobs:
 #   build-push:
@@ -26,13 +28,6 @@ name: "Terraform Plan"
 
 on:
   workflow_call:
-
-env:
- # verbosity setting for Terraform logs
- TF_LOG: INFO
- # Credentials for deployment to AWS
- AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
- AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
  
 jobs:
   tf-plan:
