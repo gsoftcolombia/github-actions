@@ -33,9 +33,6 @@ name: Docker Build & Push
 on:
   workflow_call:
 
-env:
- AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION }}
-
 jobs:
   build-push:
     name: Build, Push Docker image and Update Task Definition
