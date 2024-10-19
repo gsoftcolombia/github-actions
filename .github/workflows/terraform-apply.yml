@@ -1,11 +1,30 @@
 name: "Terraform Apply"
  
-# USAGE:
+# This Action will:
+# - Init Terraform run a tf apply
+
+# ##### GITHUB REQUIRED SECRETS #####
+# AWS_ACCESS_KEY_ID: AWS Authentication credentials.
+# AWS_SECRET_ACCESS_KEY: AWS Authentication credentials.
+
+# ##### USAGE TEMPLATE #####
 # on:
-#  workflow_dispatch:
+#   workflow_dispatch:
+# 
+# jobs:
+#   build-push:
+#     uses: gsoftcolombia/github-actions/.github/workflows/terraform-apply.yml@main
+#     secrets:
+#       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
 on:
   workflow_call:
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
 
 env:
  # verbosity setting for Terraform logs
