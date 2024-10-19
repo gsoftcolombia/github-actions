@@ -1,10 +1,30 @@
 name: "Terraform Plan"
 
-# USAGE:
+# This Action will:
+# - Lint Terraform Modules
+# - Init Terraform and test it through tf fmt and tf validate
+# - Run a tf plan
+
+# ##### GITHUB REQUIRED SECRETS #####
+# AWS_ACCESS_KEY_ID: AWS Authentication credentials.
+# AWS_SECRET_ACCESS_KEY: AWS Authentication credentials.
+
+# ##### USAGE TEMPLATE #####
 # on:
-#  pull_request:
-#    branches:
-#    - main
+#   push:
+#     branches:
+#     - main
+#   pull_request:
+#     branches:
+#     - main
+# env:
+#  TF_LOG: INFO
+#  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+# 
+# jobs:
+#   build-push:
+#     uses: gsoftcolombia/github-actions/.github/workflows/terraform-plan.yml@main
 
 on:
   workflow_call:
@@ -54,7 +74,6 @@ jobs:
   
       - name: Terraform plan
         id: plan
-        # if github.event_name == 'pull_request'
         run: terraform plan -no-color -input=false
         continue-on-error: false
   
