@@ -83,6 +83,12 @@ jobs:
       - name: Update ECS Customer Task
         run: |
           TASK_ENV=$([ "$GITHUB_REF" = "refs/heads/main" ] && echo "prod" || echo "dev")
-          TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition ${{ vars.APP_NAME_PREFIX }}-$TASK_ENV-${{ vars.APP_NAME_SUFFIX }} --region=${{ vars.AWS_DEFAULT_REGION }})
-          NEW_TASK_DEFINTIION=$(echo $TASK_DEFINITION | jq --arg IMAGE "$FULL_IMAGE_URI" '.taskDefinition | .containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn) | del(.revision) | del(.status) | del(.requiresAttributes) | del(.compatibilities) | del(.registeredAt) | del(.registeredBy)')
-          aws ecs register-task-definition --region ${{ vars.AWS_DEFAULT_REGION }} --cli-input-json "$NEW_TASK_DEFINTIION"
+          
+          echo "Updating Task Definitions"
+          export IFS=";"
+          for app in ${{ vars.APP_NAME_SUFFIX }}; do
+            echo "Updating Task-Definition for: ${app} ..."
+            TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition ${{ vars.APP_NAME_PREFIX }}-$TASK_ENV-${app} --region=${{ vars.AWS_DEFAULT_REGION }})
+            NEW_TASK_DEFINTIION=$(echo $TASK_DEFINITION | jq --arg IMAGE "$FULL_IMAGE_URI" '.taskDefinition | .containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn) | del(.revision) | del(.status) | del(.requiresAttributes) | del(.compatibilities) | del(.registeredAt) | del(.registeredBy)')
+            aws ecs register-task-definition --region ${{ vars.AWS_DEFAULT_REGION }} --cli-input-json "$NEW_TASK_DEFINTIION"
+          done
