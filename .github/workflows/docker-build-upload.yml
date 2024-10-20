@@ -23,8 +23,6 @@ name: Docker Build & Push
 #   pull_request:
 #     branches:
 #     - main
-# env:
-#  AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION }}
 # 
 # jobs:
 #   build-push:
@@ -86,7 +84,8 @@ jobs:
           
           echo "Updating Task Definitions"
           export IFS=";"
-          for app in ${{ vars.APP_NAME_SUFFIX }}; do
+          SUFFIXES=${{ vars.APP_NAME_SUFFIX }}
+          for app in $SUFFIXES; do
             echo "Updating Task-Definition for: ${app} ..."
             TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition ${{ vars.APP_NAME_PREFIX }}-$TASK_ENV-${app} --region=${{ vars.AWS_DEFAULT_REGION }})
             NEW_TASK_DEFINTIION=$(echo $TASK_DEFINITION | jq --arg IMAGE "$FULL_IMAGE_URI" '.taskDefinition | .containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn) | del(.revision) | del(.status) | del(.requiresAttributes) | del(.compatibilities) | del(.registeredAt) | del(.registeredBy)')
