@@ -78,13 +78,13 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           echo "FULL_IMAGE_URI=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_ENV
 
-      - name: Update ECS Customer Task
+      - name: Update ECS Tasks
         run: |
           TASK_ENV=$([ "$GITHUB_REF" = "refs/heads/main" ] && echo "prod" || echo "dev")
           
           echo "Updating Task Definitions"
           export IFS=";"
-          SUFFIXES=${{ vars.APP_NAME_SUFFIX }}
+          SUFFIXES="${{ vars.APP_NAME_SUFFIX }}"
           for app in $SUFFIXES; do
             echo "Updating Task-Definition for: ${app} ..."
             TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition ${{ vars.APP_NAME_PREFIX }}-$TASK_ENV-${app} --region=${{ vars.AWS_DEFAULT_REGION }})
