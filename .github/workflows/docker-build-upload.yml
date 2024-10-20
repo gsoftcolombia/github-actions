@@ -10,10 +10,11 @@ name: Docker Build & Push
 # AWS_ROLE_TO_ASSUME: ARN of the role that aws-actions can assume.
 # REPO_NAME: ECR Repository Name
 # APP_NAME_PREFIX: Prefix of the task definition in AWS.
-# APP_NAME_SUFFIX: Suffix/Postfix of the task definition in AWS.
-#   If the Action is executed from Main, it expects to update a task definition
-#   with the name {APP_NAME_PREFIX}-prod-{APP_NAME_SUFFIX}
-#   otherwise, {APP_NAME_PREFIX}-dev-{APP_NAME_SUFFIX}
+# APP_NAME_SUFFIX: Suffix/Postfix of the task definition in AWS. 
+#   - If there are multiple task-definitions you can add them separated by ';' e.g. customers;products
+#   - If the Action is executed from Main, it expects to update a task definition
+#     with the name {APP_NAME_PREFIX}-prod-{APP_NAME_SUFFIX}
+#     otherwise, {APP_NAME_PREFIX}-dev-{APP_NAME_SUFFIX}
 
 # ##### USAGE TEMPLATE #####
 # on:
