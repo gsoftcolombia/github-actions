@@ -1,0 +1,65 @@
+name: "Terraform Apply"
+ 
+# This Action will:
+# - Init Terraform run a tf apply
+
+# ##### USAGE TEMPLATE #####
+# on:
+#   workflow_dispatch:
+# 
+# jobs:
+#   build-push:
+#     uses: gsoftcolombia/github-actions/.github/workflows/terraform-apply.oidc.yml@main
+#     with:
+#       AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION }}
+#       AWS_ROLE_TO_ASSUME: ${{ vars.AWS_ROLE_TO_ASSUME }}
+
+on:
+  workflow_call:
+    inputs:
+      AWS_DEFAULT_REGION:
+        required: true
+        type: string
+      AWS_ROLE_TO_ASSUME:
+        description: 'ARN of the role that aws-actions can assume.'
+        required: true
+        type: string
+
+env:
+ TF_LOG: INFO
+
+jobs:
+  tf-apply:
+    name: "Apply in Prod"
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    environment: prod
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./
+    steps:
+      - name: Checkout the repository to the runner
+        uses: actions/checkout@v2
+  
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ inputs.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ inputs.AWS_DEFAULT_REGION }}
+
+      - name: Setup Terraform with specified version on the runner
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.0
+
+      - name: Terraform init
+        id: init
+        run: terraform init
+      
+      - name: Terraform apply
+        id: apply
+        run: terraform apply -auto-approve
+        continue-on-error: false
