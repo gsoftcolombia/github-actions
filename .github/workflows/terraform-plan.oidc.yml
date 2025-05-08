@@ -16,7 +16,7 @@ name: "Terraform Plan"
 # 
 # jobs:
 #   build-push:
-#     uses: gsoftcolombia/github-actions/.github/workflows/terraform-plan..oidc.yml@main
+#     uses: gsoftcolombia/github-actions/.github/workflows/terraform-plan.oidc.yml@main
 #     with:
 #       AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION }}
 #       AWS_ROLE_TO_ASSUME: ${{ vars.AWS_ROLE_TO_ASSUME }}
