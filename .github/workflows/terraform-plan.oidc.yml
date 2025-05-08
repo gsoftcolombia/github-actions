@@ -1,0 +1,87 @@
+name: "Terraform Plan"
+
+# This Action will:
+# - Lint Terraform Modules
+# - Init Terraform and test it through tf fmt and tf validate
+# - Run a tf plan
+
+# ##### USAGE TEMPLATE #####
+# on:
+#   push:
+#     branches:
+#     - main
+#   pull_request:
+#     branches:
+#     - main
+# 
+# jobs:
+#   build-push:
+#     uses: gsoftcolombia/github-actions/.github/workflows/terraform-plan..oidc.yml@main
+#     with:
+#       AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION }}
+#       AWS_ROLE_TO_ASSUME: ${{ vars.AWS_ROLE_TO_ASSUME }}
+
+on:
+  workflow_call:
+    inputs:
+      AWS_DEFAULT_REGION:
+        required: true
+        type: string
+      AWS_ROLE_TO_ASSUME:
+        description: 'ARN of the role that aws-actions can assume.'
+        required: true
+        type: string
+
+env:
+ TF_LOG: INFO
+ 
+jobs:
+  tf-plan:
+    name: "Prepare and Plan"
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./
+ 
+    steps:
+      - name: Checkout the repository to the runner
+        uses: actions/checkout@v2
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ inputs.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ inputs.AWS_DEFAULT_REGION }}
+
+      - name: Check linting of Terraform modules
+        uses: devops-infra/action-tflint@v0.3
+        with:
+          tflint_params: "--module --deep"
+          dir_filter: modules
+  
+      - name: Setup Terraform with specified version on the runner
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.0
+
+      - name: Terraform init
+        id: init
+        run: terraform init
+  
+      - name: Terraform format
+        id: fmt
+        run: terraform fmt -check -recursive
+     
+      - name: Terraform validate
+        id: validate
+        run: terraform validate
+  
+      - name: Terraform plan
+        id: plan
+        run: terraform plan -no-color -input=false
+        continue-on-error: false
+  
