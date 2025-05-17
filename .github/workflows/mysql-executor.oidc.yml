@@ -1,0 +1,94 @@
+name: "MySQL Executor"
+
+# This Action will:
+# - Generate an SQL file from this %project%/users/raw_template.sql
+# - Connect with specified RDS and execute the .sql file to create users
+
+# ##### GITHUB REQUIRED VARS #####
+# MYSQL_HOST: From the Github vars.MYSQL_HOST
+# MYSQL_USER: From the Github vars.MYSQL_USER
+# MYSQL_PASSWORD: From the Github secrets.MYSQL_PASSWORD
+
+# ##### USAGE TEMPLATE #####
+# on:
+#   workflow_dispatch:
+# 
+# jobs:
+#   mysql-execute:
+#     uses: gsoftcolombia/github-actions/.github/workflows/mysql-executor.oidc.yml@main
+#     with:
+#       AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION }}
+#       AWS_ROLE_TO_ASSUME: ${{ vars.AWS_ROLE_TO_ASSUME }}
+#       MYSQL_HOST: ${{ vars.MYSQL_HOST }}
+#       MYSQL_USER: ${{ vars.MYSQL_USER }}
+#       MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
+#       GH_PAT: ${{ secrets.GH_PAT }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      AWS_DEFAULT_REGION: 
+        required: true
+        type: string
+      AWS_ROLE_TO_ASSUME: 
+        required: true
+        type: string
+      MYSQL_HOST: 
+        required: true
+        type: string
+      MYSQL_USER: 
+        required: true
+        type: string
+      MYSQL_PASSWORD: 
+        required: true
+        type: string
+      GH_PAT: 
+        required: true
+        type: string
+
+jobs:
+  mysql-execute:
+    name: Executing MySQL Sync Statements.
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./
+
+    steps:
+      - name: Checkout the repository to the runner
+        uses: actions/checkout@v2
+        with:
+          path: 'iac-db-project'
+      
+      - name: Checkout PythonLib repository
+        uses: actions/checkout@v2
+        with:
+          repository: gsoftcolombia/mysql-ssm-executor
+          ref: main
+          token: ${{ inputs.GH_PAT }}
+          path: 'mysql-ssm-executor'
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ inputs.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ inputs.AWS_DEFAULT_REGION }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+        
+      - name: Preparing Environment
+        run: | 
+          cp iac-db-project/users/raw_template.sql mysql-ssm-executor/raw_template.sql
+          cd mysql-ssm-executor
+          pip install -r requirements.txt
+
+      - name: Running MySQL Executor
+        run: |
+          cd mysql-ssm-executor
+          python main.py
