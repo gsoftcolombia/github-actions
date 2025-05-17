@@ -25,7 +25,7 @@ name: "MySQL Executor"
 #       GH_PAT: ${{ secrets.GH_PAT }}
 
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
       AWS_DEFAULT_REGION: 
         required: true
