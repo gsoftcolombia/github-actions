@@ -39,12 +39,11 @@ on:
       MYSQL_USER: 
         required: true
         type: string
+    secrets:
       MYSQL_PASSWORD: 
         required: true
-        type: string
       GH_PAT: 
         required: true
-        type: string
 
 jobs:
   mysql-execute:
