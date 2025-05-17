@@ -68,7 +68,7 @@ jobs:
         with:
           repository: gsoftcolombia/mysql-ssm-executor
           ref: main
-          token: ${{ inputs.GH_PAT }}
+          token: ${{ secrets.GH_PAT }}
           path: 'mysql-ssm-executor'
       
       - name: Configure AWS credentials
@@ -88,6 +88,10 @@ jobs:
           pip install -r requirements.txt
 
       - name: Running MySQL Executor
+        env:
+          MYSQL_HOST: ${{ inputs.MYSQL_HOST }}
+          MYSQL_USER: ${{ inputs.MYSQL_USER }}
+          MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
         run: |
           cd mysql-ssm-executor
           python main.py
