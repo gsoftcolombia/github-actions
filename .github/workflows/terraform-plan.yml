@@ -1,5 +1,10 @@
 name: "Terraform Plan"
 
+### ATTENTION ###
+# THIS ACTION SHOULD BE USED ONLY FOR *-infrastructure REPOSITORIES
+# OTHER REPOSITORIES SHOULD USE THEIR OWN oidc.
+#################
+
 # This Action will:
 # - Lint Terraform Modules
 # - Init Terraform and test it through tf fmt and tf validate

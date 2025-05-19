@@ -1,5 +1,10 @@
 name: "Terraform Apply"
- 
+
+### ATTENTION ###
+# THIS ACTION SHOULD BE USED ONLY FOR *-infrastructure REPOSITORIES
+# OTHER REPOSITORIES SHOULD USE THEIR OWN oidc.
+#################
+
 # This Action will:
 # - Init Terraform run a tf apply
 
