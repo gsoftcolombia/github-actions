@@ -26,3 +26,6 @@ Passwords are in SSM Parameter Store in AWS: This script receive the raw templat
 
 The good part is that, you as developer doesnt know what is the value of the passwords, however you can create the different users in a kind of iac.
 
+# More Information
+
+Please go to [Confluence](https://gsoftcolombia.atlassian.net/wiki/x/ooH7)
