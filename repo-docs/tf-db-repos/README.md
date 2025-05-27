@@ -1,4 +1,4 @@
-# gsoft-%-db
+# Terraform DB Repo
 
 > [!NOTE]
 > This is a general README for all db-repos
