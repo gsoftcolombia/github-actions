@@ -28,9 +28,39 @@ name: Docker Build & Push
 # jobs:
 #   build-push:
 #     uses: gsoftcolombia/github-actions/.github/workflows/docker-build-upload.yml@main
+#     with:
+#       AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION }}
+#       AWS_ROLE_TO_ASSUME: ${{ vars.AWS_ROLE_TO_ASSUME }}
+#       REPO_NAME: ${{ vars.REPO_NAME }}
+#       APP_NAME_PREFIX: ${{ vars.APP_NAME_PREFIX }} # Only when you want to deploy scheduled tasks
+#       APP_NAME_SUFFIX: ${{ vars.APP_NAME_SUFFIX }} # Only when you want to deploy scheduled tasks
+#       ECS_SERVICE_NAME: ${{ vars.ECS_SERVICE_NAME }} # Only when you want to deploy ECS Services
+
+
 
 on:
   workflow_call:
+    inputs:
+      AWS_DEFAULT_REGION: 
+        required: true
+        type: string
+      AWS_ROLE_TO_ASSUME: 
+        required: true
+        type: string
+      REPO_NAME: 
+        required: true
+        type: string
+      APP_NAME_PREFIX:
+        required: false
+        type: string
+      APP_NAME_SUFFIX:
+        required: false
+        type: string
+        default: ''
+      ECS_SERVICE_NAME:
+        required: false
+        type: string
+        default: ''
 
 jobs:
   build-push:
@@ -51,63 +81,66 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
-          aws-region: ${{ vars.AWS_DEFAULT_REGION }}
+          role-to-assume: ${{ inputs.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ inputs.AWS_DEFAULT_REGION }}
       
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
 
       - name: Set short git commit SHA
-        id: vars
+        id: commit-sha
         run: |
           PR_SHA=${{ github.event.pull_request.head.sha }}
           GITHUB_SHA=${{ github.sha }}
           COMMIT_SHA="${PR_SHA:-$GITHUB_SHA}"
           calculatedSha=$(git rev-parse --short ${COMMIT_SHA})
-          echo "COMMIT_SHORT_SHA=$calculatedSha" >> $GITHUB_ENV
+          echo "COMMIT_SHORT_SHA=$calculatedSha" >> $GITHUB_OUTPUT
     
       - name: Build and Push to ECR
         id: build
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: ${{ vars.REPO_NAME }}
+          ECR_REPOSITORY: ${{ inputs.REPO_NAME }}
         run: |
           IMAGE_ENV=$([ "$GITHUB_REF" = "refs/heads/main" ] && echo "prod" || echo "dev")
-          IMAGE_TAG="${IMAGE_ENV}-${COMMIT_SHORT_SHA}"
+          IMAGE_TAG="${IMAGE_ENV}-${{ steps.commit-sha.outputs.COMMIT_SHORT_SHA }}"
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          echo "FULL_IMAGE_URI=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_ENV
+          echo "FULL_IMAGE_URI=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-      - name: Update ECS Tasks
+      - name: Update ECS Schedule Tasks # It only runs when there are APPs specified (SUFFIX)
+        if: ${{ inputs.APP_NAME_SUFFIX != '' }}
+        id: update-schedules
         run: |
           TASK_ENV=$([ "$GITHUB_REF" = "refs/heads/main" ] && echo "prod" || echo "dev")
           
           echo "Updating Task Definitions"
-          export IFS=";"
-          SUFFIXES="${{ vars.APP_NAME_SUFFIX }}"
+          SUFFIXES="${{ inputs.APP_NAME_SUFFIX }}"
           for app in $SUFFIXES; do
             if ! aws ecs describe-task-definition \
-              --task-definition ${{ vars.APP_NAME_PREFIX }}-$TASK_ENV-${app} \
-              --region=${{ vars.AWS_DEFAULT_REGION }} &> /dev/null; then
+              --task-definition ${{ inputs.APP_NAME_PREFIX }}-$TASK_ENV-${app} \
+              --region=${{ inputs.AWS_DEFAULT_REGION }} &> /dev/null; then
               echo "WARNING: Task definition $TASK_DEFINITION does not exist."
             else
               echo "Updating Task-Definition for: ${app} ..."
-              TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition ${{ vars.APP_NAME_PREFIX }}-$TASK_ENV-${app} --region=${{ vars.AWS_DEFAULT_REGION }})
-              NEW_TASK_DEFINTIION=$(echo $TASK_DEFINITION | jq --arg IMAGE "$FULL_IMAGE_URI" '.taskDefinition | .containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn) | del(.revision) | del(.status) | del(.requiresAttributes) | del(.compatibilities) | del(.registeredAt) | del(.registeredBy)')
-              aws ecs register-task-definition --region ${{ vars.AWS_DEFAULT_REGION }} --cli-input-json "$NEW_TASK_DEFINTIION"
+              TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition ${{ inputs.APP_NAME_PREFIX }}-$TASK_ENV-${app} --region=${{ inputs.AWS_DEFAULT_REGION }})
+              NEW_TASK_DEFINTIION=$(echo $TASK_DEFINITION | jq --arg IMAGE "${{ steps.build.outputs.FULL_IMAGE_URI }}" '.taskDefinition | .containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn) | del(.revision) | del(.status) | del(.requiresAttributes) | del(.compatibilities) | del(.registeredAt) | del(.registeredBy)')
+              aws ecs register-task-definition --region ${{ inputs.AWS_DEFAULT_REGION }} --cli-input-json "$NEW_TASK_DEFINTIION"
             fi
           done
 
-      - name: Render Amazon ECS Service Task Definition
+      - name: Render Amazon ECS Service Task Definition # It only runs when there is an ECS_SERVICE_NAME specified.
+        if: ${{ inputs.ECS_SERVICE_NAME != '' }}
         id: render-web-container
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:          
           task-definition-family: gs-saas-dev-lubri-sgc
           container-name: gs-saas-dev-lubri-sgc
-          image: ${{ env.FULL_IMAGE_URI }}
+          image: ${{ steps.build.outputs.FULL_IMAGE_URI }}
 
       - name: Generate appspec.yaml dynamically
+        if: ${{ inputs.ECS_SERVICE_NAME != '' }}
         id: generate-appspec
         run: |
           cat <<EOF > appspec.yaml
@@ -116,58 +149,19 @@ jobs:
             - TargetService:
                 Type: AWS::ECS::Service
                 Properties:
-                  TaskDefinition: "gs-saas-dev-lubri-sgc"
+                  TaskDefinition: "${{ inputs.ECS_SERVICE_NAME }}"
                   LoadBalancerInfo:
-                    ContainerName: "gs-saas-dev-lubri-sgc"
+                    ContainerName: "${{ inputs.ECS_SERVICE_NAME }}"
                     ContainerPort: 80
           EOF
-          # Optionally, print it for debugging
-          cat appspec.yaml
 
       - name: Deploy to Amazon ECS service
+        if: ${{ inputs.ECS_SERVICE_NAME != '' }}
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.render-web-container.outputs.task-definition }}
-          service: gs-saas-dev-lubri-sgc
-          cluster: gs-saas-ecs-cluster
+          service: ${{ inputs.ECS_SERVICE_NAME }}
+          cluster: ${{ inputs.ECS_SERVICE_NAME }}
           wait-for-service-stability: true
-          #codedeploy-appspec: appspec.json
-          codedeploy-application: gs-saas-dev-lubri-sgc
-          codedeploy-deployment-group: gs-saas-dev-lubri-sgc
-
-      # - name: Deploy Blue/Green ECS Service
-      #   
-      #   run: |
-          
-      #     cat <<EOF > appspec.yaml
-      #     version: 0.0
-      #     Resources:
-      #       - TargetService:
-      #           Type: AWS::ECS::Service
-      #           Properties:
-      #             TaskDefinition: "${{ env.ECS_SERVICE_NAME }}"
-      #             LoadBalancerInfo:
-      #               ContainerName: "${{ env.ECS_SERVICE_NAME }}"
-      #               ContainerPort: 80
-      #     EOF
-
-      # - name: Deploy to ECS using CodeDeploy
-      #   run: |
-      #     # Get the current task definition (optional, adjust as needed)
-      #     TASK_DEFINITION=$(aws ecs describe-services \
-      #       --cluster ${{ env.ECS_CLUSTER_NAME }} \
-      #       --services ${{ env.ECS_SERVICE_NAME }} \
-      #       --query 'services[0].taskDefinition' \
-      #       --output text)
-          
-      #     # Create deployment
-      #     aws deploy create-deployment \
-      #       --application-name ${{ env.CODEDEPLOY_APPLICATION_NAME }} \
-      #       --deployment-group-name ${{ env.CODEDEPLOY_DEPLOYMENT_GROUP }} \
-      #       --revision '{
-      #         "revisionType": "AppSpecContent",
-      #         "appSpecContent": {
-      #           "content": "$(cat appspec.yaml | jq -sR)",
-      #           "sha256": "$(sha256sum appspec.yaml | cut -d " " -f 1)"
-      #         }
-      #       }'
+          codedeploy-application: ${{ inputs.ECS_SERVICE_NAME }}
+          codedeploy-deployment-group: ${{ inputs.ECS_SERVICE_NAME }}
