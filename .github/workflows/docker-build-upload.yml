@@ -98,3 +98,59 @@ jobs:
               aws ecs register-task-definition --region ${{ vars.AWS_DEFAULT_REGION }} --cli-input-json "$NEW_TASK_DEFINTIION"
             fi
           done
+
+      - name: Render Amazon ECS Service Task Definition
+        id: render-web-container
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:          
+          task-definition-family: gs-saas-dev-lubri-sgc
+          container-name: gs-saas-dev-lubri-sgc
+          image: ${{ env.FULL_IMAGE_URI }}
+
+      - name: Deploy to Amazon ECS service
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-web-container.outputs.task-definition }}
+          service: gs-saas-dev-lubri-sgc
+          cluster: gs-saas-ecs-cluster
+          wait-for-service-stability: true
+          #codedeploy-appspec: appspec.json
+          codedeploy-application: gs-saas-dev-lubri-sgc
+          codedeploy-deployment-group: gs-saas-dev-lubri-sgc
+
+      # - name: Deploy Blue/Green ECS Service
+      #   
+      #   run: |
+          
+      #     cat <<EOF > appspec.yaml
+      #     version: 0.0
+      #     Resources:
+      #       - TargetService:
+      #           Type: AWS::ECS::Service
+      #           Properties:
+      #             TaskDefinition: "${{ env.ECS_SERVICE_NAME }}"
+      #             LoadBalancerInfo:
+      #               ContainerName: "${{ env.ECS_SERVICE_NAME }}"
+      #               ContainerPort: 80
+      #     EOF
+
+      # - name: Deploy to ECS using CodeDeploy
+      #   run: |
+      #     # Get the current task definition (optional, adjust as needed)
+      #     TASK_DEFINITION=$(aws ecs describe-services \
+      #       --cluster ${{ env.ECS_CLUSTER_NAME }} \
+      #       --services ${{ env.ECS_SERVICE_NAME }} \
+      #       --query 'services[0].taskDefinition' \
+      #       --output text)
+          
+      #     # Create deployment
+      #     aws deploy create-deployment \
+      #       --application-name ${{ env.CODEDEPLOY_APPLICATION_NAME }} \
+      #       --deployment-group-name ${{ env.CODEDEPLOY_DEPLOYMENT_GROUP }} \
+      #       --revision '{
+      #         "revisionType": "AppSpecContent",
+      #         "appSpecContent": {
+      #           "content": "$(cat appspec.yaml | jq -sR)",
+      #           "sha256": "$(sha256sum appspec.yaml | cut -d " " -f 1)"
+      #         }
+      #       }'
