@@ -107,6 +107,23 @@ jobs:
           container-name: gs-saas-dev-lubri-sgc
           image: ${{ env.FULL_IMAGE_URI }}
 
+      - name: Generate appspec.yaml dynamically
+        id: generate-appspec
+        run: |
+          cat <<EOF > appspec.yaml
+          version: 0.0
+          Resources:
+            - TargetService:
+                Type: AWS::ECS::Service
+                Properties:
+                  TaskDefinition: "gs-saas-dev-lubri-sgc"
+                  LoadBalancerInfo:
+                    ContainerName: "gs-saas-dev-lubri-sgc"
+                    ContainerPort: 80
+          EOF
+          # Optionally, print it for debugging
+          cat appspec.yaml
+
       - name: Deploy to Amazon ECS service
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
