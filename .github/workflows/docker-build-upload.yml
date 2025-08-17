@@ -61,6 +61,14 @@ on:
         required: false
         type: string
         default: ''
+      ECS_CLUSTER_NAME:
+        required: false # Required if there is ECS_SERVICE_NAME
+        type: string
+        default: ''
+      ECS_DEV_DEPLOY:
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   build-push:
@@ -96,8 +104,11 @@ jobs:
           COMMIT_SHA="${PR_SHA:-$GITHUB_SHA}"
           calculatedSha=$(git rev-parse --short ${COMMIT_SHA})
           echo "COMMIT_SHORT_SHA=$calculatedSha" >> $GITHUB_OUTPUT
+          TASK_ENV=$([ "$GITHUB_REF" = "refs/heads/main" ] && echo "prod" || echo "dev")
+          echo "TASK_ENV=$TASK_ENV" >> $GITHUB_OUTPUT
     
       - name: Build and Push to ECR
+        continue-on-error: true # for cases when the image is already pushed
         id: build
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -112,19 +123,17 @@ jobs:
       - name: Update ECS Schedule Tasks # It only runs when there are APPs specified (SUFFIX)
         if: ${{ inputs.APP_NAME_SUFFIX != '' }}
         id: update-schedules
-        run: |
-          TASK_ENV=$([ "$GITHUB_REF" = "refs/heads/main" ] && echo "prod" || echo "dev")
-          
+        run: |          
           echo "Updating Task Definitions"
           SUFFIXES="${{ inputs.APP_NAME_SUFFIX }}"
           for app in $SUFFIXES; do
             if ! aws ecs describe-task-definition \
-              --task-definition ${{ inputs.APP_NAME_PREFIX }}-$TASK_ENV-${app} \
+              --task-definition ${{ inputs.APP_NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${app} \
               --region=${{ inputs.AWS_DEFAULT_REGION }} &> /dev/null; then
               echo "WARNING: Task definition $TASK_DEFINITION does not exist."
             else
               echo "Updating Task-Definition for: ${app} ..."
-              TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition ${{ inputs.APP_NAME_PREFIX }}-$TASK_ENV-${app} --region=${{ inputs.AWS_DEFAULT_REGION }})
+              TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition ${{ inputs.APP_NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${app} --region=${{ inputs.AWS_DEFAULT_REGION }})
               NEW_TASK_DEFINTIION=$(echo $TASK_DEFINITION | jq --arg IMAGE "${{ steps.build.outputs.FULL_IMAGE_URI }}" '.taskDefinition | .containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn) | del(.revision) | del(.status) | del(.requiresAttributes) | del(.compatibilities) | del(.registeredAt) | del(.registeredBy)')
               aws ecs register-task-definition --region ${{ inputs.AWS_DEFAULT_REGION }} --cli-input-json "$NEW_TASK_DEFINTIION"
             fi
@@ -156,12 +165,14 @@ jobs:
           EOF
 
       - name: Deploy to Amazon ECS service
-        if: ${{ inputs.ECS_SERVICE_NAME != '' }}
+        if: ${{ inputs.ECS_SERVICE_NAME != '' && (steps.commit-sha.outputs.TASK_ENV == 'prod' || ( steps.commit-sha.outputs.TASK_ENV == 'dev' && inputs.ECS_DEV_DEPLOY == true )) }}
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.render-web-container.outputs.task-definition }}
           service: ${{ inputs.ECS_SERVICE_NAME }}
-          cluster: ${{ inputs.ECS_SERVICE_NAME }}
+          cluster: ${{ inputs.ECS_CLUSTER_NAME }}
           wait-for-service-stability: true
           codedeploy-application: ${{ inputs.ECS_SERVICE_NAME }}
           codedeploy-deployment-group: ${{ inputs.ECS_SERVICE_NAME }}
+
+          # TODO: ECS service need to be splitted in prefix - env - ecs service app, maybe the current app_prefix is compatible.
