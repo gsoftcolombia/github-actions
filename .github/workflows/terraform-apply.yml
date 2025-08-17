@@ -42,7 +42,6 @@ jobs:
   tf-apply:
     name: "Apply in Prod"
     runs-on: ubuntu-latest
-    environment: prod
     defaults:
       run:
         shell: bash
