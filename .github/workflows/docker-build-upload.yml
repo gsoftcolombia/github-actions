@@ -127,6 +127,7 @@ jobs:
         id: update-schedules
         run: |          
           echo "Updating Task Definitions"
+          export IFS=";"
           SUFFIXES="${{ inputs.APP_NAME_SUFFIX }}"
           for app in $SUFFIXES; do
             if ! aws ecs describe-task-definition \
