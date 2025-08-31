@@ -35,6 +35,8 @@ name: Docker Build & Push
 #       APP_NAME_PREFIX: ${{ vars.APP_NAME_PREFIX }} # Only when you want to deploy scheduled tasks
 #       APP_NAME_SUFFIX: ${{ vars.APP_NAME_SUFFIX }} # Only when you want to deploy scheduled tasks
 #       ECS_SERVICE_NAME: ${{ vars.ECS_SERVICE_NAME }} # Only when you want to deploy ECS Services
+#       ECS_CLUSTER_NAME: ${{ vars.ECS_CLUSTER_NAME }} # Only when you want to deploy ECS Services
+#       ECS_DEV_DEPLOY: true # Only when you want to deploy a dev ECS Service for the app
 
 
 
@@ -144,8 +146,8 @@ jobs:
         id: render-web-container
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:          
-          task-definition-family: gs-saas-dev-lubri-sgc
-          container-name: gs-saas-dev-lubri-sgc
+          task-definition-family: ${{ inputs.APP_NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${{ inputs.ECS_SERVICE_NAME }}
+          container-name: ${{ inputs.APP_NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${{ inputs.ECS_SERVICE_NAME }}
           image: ${{ steps.build.outputs.FULL_IMAGE_URI }}
 
       - name: Generate appspec.yaml dynamically
@@ -158,9 +160,9 @@ jobs:
             - TargetService:
                 Type: AWS::ECS::Service
                 Properties:
-                  TaskDefinition: "${{ inputs.ECS_SERVICE_NAME }}"
+                  TaskDefinition: "${{ inputs.APP_NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${{ inputs.ECS_SERVICE_NAME }}"
                   LoadBalancerInfo:
-                    ContainerName: "${{ inputs.ECS_SERVICE_NAME }}"
+                    ContainerName: "${{ inputs.APP_NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${{ inputs.ECS_SERVICE_NAME }}"
                     ContainerPort: 80
           EOF
 
@@ -169,10 +171,8 @@ jobs:
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.render-web-container.outputs.task-definition }}
-          service: ${{ inputs.ECS_SERVICE_NAME }}
+          service: ${{ inputs.APP_NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${{ inputs.ECS_SERVICE_NAME }}
           cluster: ${{ inputs.ECS_CLUSTER_NAME }}
           wait-for-service-stability: true
-          codedeploy-application: ${{ inputs.ECS_SERVICE_NAME }}
-          codedeploy-deployment-group: ${{ inputs.ECS_SERVICE_NAME }}
-
-          # TODO: ECS service need to be splitted in prefix - env - ecs service app, maybe the current app_prefix is compatible.
+          codedeploy-application: ${{ inputs.APP_NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${{ inputs.ECS_SERVICE_NAME }}
+          codedeploy-deployment-group: ${{ inputs.APP_NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${{ inputs.ECS_SERVICE_NAME }}
