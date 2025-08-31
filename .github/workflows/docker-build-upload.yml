@@ -32,7 +32,7 @@ name: Docker Build & Push
 #       AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION }}
 #       AWS_ROLE_TO_ASSUME: ${{ vars.AWS_ROLE_TO_ASSUME }}
 #       REPO_NAME: ${{ vars.REPO_NAME }}
-#       APP_NAME_PREFIX: ${{ vars.APP_NAME_PREFIX }} # Only when you want to deploy scheduled tasks
+#       APP_NAME_PREFIX: ${{ vars.APP_NAME_PREFIX }} # Required for both ECS Services and Scheduled Tasks
 #       APP_NAME_SUFFIX: ${{ vars.APP_NAME_SUFFIX }} # Only when you want to deploy scheduled tasks
 #       ECS_SERVICE_NAME: ${{ vars.ECS_SERVICE_NAME }} # Only when you want to deploy ECS Services
 #       ECS_CLUSTER_NAME: ${{ vars.ECS_CLUSTER_NAME }} # Only when you want to deploy ECS Services
