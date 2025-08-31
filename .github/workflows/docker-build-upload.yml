@@ -137,8 +137,12 @@ jobs:
             else
               echo "Updating Task-Definition for: ${app} ..."
               TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition ${{ inputs.APP_NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${app} --region=${{ inputs.AWS_DEFAULT_REGION }})
-              NEW_TASK_DEFINTIION=$(echo $TASK_DEFINITION | jq --arg IMAGE "${{ steps.build.outputs.FULL_IMAGE_URI }}" '.taskDefinition | .containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn) | del(.revision) | del(.status) | del(.requiresAttributes) | del(.compatibilities) | del(.registeredAt) | del(.registeredBy)')
-              aws ecs register-task-definition --region ${{ inputs.AWS_DEFAULT_REGION }} --cli-input-json "$NEW_TASK_DEFINTIION"
+              echo "This is the current task definition"
+              echo $TASK_DEFINITION
+              NEW_TASK_DEFINITION=$(echo $TASK_DEFINITION | jq --arg IMAGE "${{ steps.build.outputs.FULL_IMAGE_URI }}" '.taskDefinition | .containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn) | del(.revision) | del(.status) | del(.requiresAttributes) | del(.compatibilities) | del(.registeredAt) | del(.registeredBy)')
+              echo "This is the new task definition"
+              echo $NEW_TASK_DEFINITION
+              aws ecs register-task-definition --region ${{ inputs.AWS_DEFAULT_REGION }} --cli-input-json "$NEW_TASK_DEFINITION"
             fi
           done
 
