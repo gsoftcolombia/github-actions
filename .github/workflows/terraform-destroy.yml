@@ -1,0 +1,60 @@
+name: "Terraform Destroy"
+
+### ATTENTION ###
+# THIS ACTION SHOULD BE USED ONLY FOR *-infrastructure REPOSITORIES
+# OTHER REPOSITORIES SHOULD USE THEIR OWN oidc.
+#################
+
+# This Action will:
+# - Init Terraform run a tf apply
+
+# ##### GITHUB REQUIRED SECRETS #####
+# AWS_ACCESS_KEY_ID: AWS Authentication credentials.
+# AWS_SECRET_ACCESS_KEY: AWS Authentication credentials.
+
+# ##### USAGE TEMPLATE #####
+# on:
+#   workflow_dispatch:
+# 
+# jobs:
+#   build-push:
+#     uses: gsoftcolombia/github-actions/.github/workflows/terraform-destroy.yml@main
+#     secrets:
+#       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+on:
+  workflow_call:
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+
+env:
+ # verbosity setting for Terraform logs
+ TF_LOG: INFO
+ 
+jobs:
+  tf-apply:
+    runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    steps:
+      - name: Checkout the repository to the runner
+        uses: actions/checkout@v2
+  
+      - name: Setup Terraform with specified version on the runner
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.0
+
+      - name: Terraform init
+        id: init
+        run: terraform init
+      
+      - name: Terraform apply
+        id: apply
+        run: terraform apply -auto-approve
+        continue-on-error: false
