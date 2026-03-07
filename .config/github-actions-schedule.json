@@ -7,7 +7,7 @@
             "portMappings": [],
             "essential": true,
             "command": [
-                "bash",
+                "/bin/bash",
                 "-c",
                 "echo bootstrap task; exit 0"
             ],
@@ -26,5 +26,5 @@
         }
     ],
     "cpu": "256",
-    "memory": "512"
+    "memory": "513"
 }
