@@ -18,7 +18,7 @@ jobs:
       NAME_PREFIX: 'gs-sandbox'
       
       DEPLOY_SCHEDULED_TASK: false # Only when you want to deploy scheduled tasks for the app
-      EXECUTION_NAME: 'github-actions-schedule' # It can be a list, only when you want to deploy scheduled tasks
+      EXECUTION_NAME: 'github-actions-schedule' # It can be a list separated by ';', only when you want to deploy scheduled tasks
       
       DEPLOY_ECS_SERVICE: false # Only when you want to deploy a ecs service for the app
       SERVICE_NAME: 'github-actions-service' # Only when you want to deploy a ecs service

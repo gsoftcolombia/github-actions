@@ -140,16 +140,18 @@ jobs:
         run: |          
           echo "Updating Task Definitions"
           export IFS=";"
-          SUFFIXES="${{ inputs.EXECUTION_NAME }}"
-          for app in $SUFFIXES; do
+          list_execution_name="${{ inputs.EXECUTION_NAME }}"
+          for execution_name in $list_execution_name; do
             if ! aws ecs describe-task-definition \
-              --task-definition ${{ inputs.NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${app} \
+              --task-definition ${{ inputs.NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${execution_name} \
               --region=${{ inputs.AWS_DEFAULT_REGION }} &> /dev/null; then
-              echo "WARNING: Task definition $TASK_DEFINITION does not exist."
+              echo "ERROR: Task definition ${{ inputs.NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${execution_name} does not exist."
+              exit 1
             else
-              echo "Updating Task-Definition for: ${app} ..."
-              TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition ${{ inputs.NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${app} --region=${{ inputs.AWS_DEFAULT_REGION }})
-              NEW_TASK_DEFINITION=$(echo $TASK_DEFINITION | jq --arg IMAGE "${{ steps.build.outputs.FULL_IMAGE_URI }}" '.taskDefinition | .containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn) | del(.revision) | del(.status) | del(.requiresAttributes) | del(.compatibilities) | del(.registeredAt) | del(.registeredBy)')
+              echo "Updating Task-Definition for: ${execution_name} ..."
+              TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition ${{ inputs.NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${execution_name} --region=${{ inputs.AWS_DEFAULT_REGION }})
+              updated_task_definition=$(echo $TASK_DEFINITION | jq --slurpfile config .config/scheduled_task.json '.taskDefinition | .containerDefinitions = $config[0].containerDefinitions | .cpu = $config[0].cpu | .memory = $config[0].memory')
+              NEW_TASK_DEFINITION=$(echo $updated_task_definition | jq --arg IMAGE "${{ steps.build.outputs.FULL_IMAGE_URI }}" '.containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn) | del(.revision) | del(.status) | del(.requiresAttributes) | del(.compatibilities) | del(.registeredAt) | del(.registeredBy)')
               aws ecs register-task-definition --region ${{ inputs.AWS_DEFAULT_REGION }} --cli-input-json "$NEW_TASK_DEFINITION"
             fi
           done
