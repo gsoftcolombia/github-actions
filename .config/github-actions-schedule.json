@@ -2,14 +2,13 @@
     "containerDefinitions": [
         {
             "name": "gs-sandbox-dev-github-actions-schedule",
-            "image": "public.ecr.aws/docker/library/busybox",
             "cpu": 0,
             "portMappings": [],
             "essential": true,
             "command": [
                 "/bin/bash",
                 "-c",
-                "echo test performed; exit 0"
+                "echo Scheduled Task Executed; exit 0"
             ],
             "environment": [],
             "mountPoints": [],
@@ -24,5 +23,7 @@
             },
             "systemControls": []
         }
-    ]
+    ],
+    "cpu": "256",
+    "memory": "512"
 }
