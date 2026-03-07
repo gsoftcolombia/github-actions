@@ -1,9 +1,6 @@
 name: Demo Deployment Workflow
 
 on:
-  push:
-    branches:
-    - main
   pull_request:
     branches:
     - main
@@ -20,7 +17,7 @@ jobs:
       DEPLOY_SCHEDULED_TASK: true # Only when you want to deploy scheduled tasks for the app
       EXECUTION_NAME: 'github-actions-schedule' # It can be a list separated by ';', only when you want to deploy scheduled tasks
       
-      DEPLOY_ECS_SERVICE: false # Only when you want to deploy a ecs service for the app
-      SERVICE_NAME: 'github-actions-service' # Only when you want to deploy a ecs service
+      DEPLOY_ECS_SERVICE: true # Only when you want to deploy a ecs service for the app
+      SERVICE_NAME: 'demo-svc' # Only when you want to deploy a ecs service
       ECS_CLUSTER_NAME: 'gs-sandbox-ecs-cluster' # Only when you want to deploy a ecs service
-      ECS_DEV_DEPLOY: false # Only when you want to deploy a dev ecs service for the app
+      ECS_DEV_DEPLOY: true # Only when you want to deploy a dev ecs service for the app
