@@ -10,7 +10,7 @@ on:
 
 jobs:
   build-push:
-    uses: .github/workflows/docker-build-upload.yml@${{ github.ref_name }}
+    uses: ./.github/workflows/docker-build-upload.yml
     with:
       AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION }}
       AWS_ROLE_TO_ASSUME: ${{ vars.AWS_ROLE_TO_ASSUME }}
