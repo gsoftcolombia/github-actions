@@ -122,7 +122,6 @@ jobs:
           echo "TASK_ENV=$TASK_ENV" >> $GITHUB_OUTPUT
     
       - name: Build and Push to ECR
-        continue-on-error: true # for cases when the image is already pushed
         id: build
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -131,6 +130,7 @@ jobs:
           IMAGE_ENV=$([ "$GITHUB_REF" = "refs/heads/main" ] && echo "prod" || echo "dev")
           IMAGE_TAG="${IMAGE_ENV}-${{ steps.commit-sha.outputs.COMMIT_SHORT_SHA }}"
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          aws ecr batch-delete-image --repository-name $ECR_REPOSITORY --image-ids imageTag=$IMAGE_TAG 2>/dev/null || true
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           echo "FULL_IMAGE_URI=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
