@@ -188,6 +188,6 @@ jobs:
           task-definition: ${{ steps.render-web-container.outputs.task-definition }}
           service: ${{ inputs.NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${{ inputs.SERVICE_NAME }}
           cluster: ${{ inputs.ECS_CLUSTER_NAME }}
-          wait-for-service-stability: true
+          wait-for-service-stability: false
           codedeploy-application: ${{ inputs.NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${{ inputs.SERVICE_NAME }}
           codedeploy-deployment-group: ${{ inputs.NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${{ inputs.SERVICE_NAME }}
