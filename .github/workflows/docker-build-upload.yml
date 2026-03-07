@@ -8,13 +8,13 @@ name: Docker Build & Push
 # ##### GITHUB REQUIRED VARS #####
 # AWS_DEFAULT_REGION: Already available in all /gsoftcolombia projects.
 # AWS_ROLE_TO_ASSUME: ARN of the role that aws-actions can assume.
-# REPO_NAME: ECR Repository Name
-# APP_NAME_PREFIX: Prefix of the task definition in AWS.
-# APP_NAME_SUFFIX: Suffix/Postfix of the task definition in AWS. 
+# ECR_REPOSITORY: ECR Repository Name
+# NAME_PREFIX: Prefix of the task definition in AWS.
+# EXECUTION_NAME: Suffix/Postfix of the task definition in AWS. 
 #   - If there are multiple task-definitions you can add them separated by ';' e.g. customers;products
 #   - If the Action is executed from Main, it expects to update a task definition
-#     with the name {APP_NAME_PREFIX}-prod-{APP_NAME_SUFFIX}
-#     otherwise, {APP_NAME_PREFIX}-dev-{APP_NAME_SUFFIX}
+#     with the name {NAME_PREFIX}-prod-{EXECUTION_NAME}
+#     otherwise, {NAME_PREFIX}-dev-{EXECUTION_NAME}
 
 # ##### USAGE TEMPLATE #####
 # on:
@@ -31,10 +31,14 @@ name: Docker Build & Push
 #     with:
 #       AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION }}
 #       AWS_ROLE_TO_ASSUME: ${{ vars.AWS_ROLE_TO_ASSUME }}
-#       REPO_NAME: ${{ vars.REPO_NAME }}
-#       APP_NAME_PREFIX: ${{ vars.APP_NAME_PREFIX }} # Required for both ECS Services and Scheduled Tasks
-#       APP_NAME_SUFFIX: ${{ vars.APP_NAME_SUFFIX }} # Only when you want to deploy scheduled tasks
-#       ECS_SERVICE_NAME: ${{ vars.ECS_SERVICE_NAME }} # Only when you want to deploy ECS Services
+#       ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+#       NAME_PREFIX: ${{ vars.NAME_PREFIX }} # Required for both ECS Services and Scheduled Tasks
+#
+#       DEPLOY_SCHEDULED_TASK: true # Only when you want to deploy scheduled tasks for the app
+#       EXECUTION_NAME: ${{ vars.EXECUTION_NAME }} # Only when you want to deploy scheduled tasks
+#
+#       DEPLOY_ECS_SERVICE: true # Only when you want to deploy a ecs service for the app
+#       SERVICE_NAME: ${{ vars.SERVICE_NAME }} # Only when you want to deploy ECS Services
 #       ECS_CLUSTER_NAME: ${{ vars.ECS_CLUSTER_NAME }} # Only when you want to deploy ECS Services
 #       ECS_DEV_DEPLOY: true # Only when you want to deploy a dev ECS Service for the app
 
@@ -49,24 +53,32 @@ on:
       AWS_ROLE_TO_ASSUME: 
         required: true
         type: string
-      REPO_NAME: 
+      ECR_REPOSITORY: 
         required: true
         type: string
-      APP_NAME_PREFIX:
+      NAME_PREFIX:
+        required: true
+        type: string
+      
+      DEPLOY_SCHEDULED_TASK:
+        required: true
+        type: boolean
+      EXECUTION_NAME:
         required: false
         type: string
-      APP_NAME_SUFFIX:
+        default: 'missing_execution_name' # Only when you want to deploy scheduled tasks, it can be a list separated by ';'
+
+      DEPLOY_ECS_SERVICE:
+        required: true
+        type: boolean
+      SERVICE_NAME:
         required: false
         type: string
-        default: ''
-      ECS_SERVICE_NAME:
-        required: false
-        type: string
-        default: ''
+        default: 'missing_service_name' # Only when you want to deploy a ecs service for the app
       ECS_CLUSTER_NAME:
-        required: false # Required if there is ECS_SERVICE_NAME
+        required: false # Required if there is SERVICE_NAME
         type: string
-        default: ''
+        default: 'missing_cluster_name' # Only when you want to deploy a ecs service for the app
       ECS_DEV_DEPLOY:
         required: false
         type: boolean
@@ -114,7 +126,7 @@ jobs:
         id: build
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: ${{ inputs.REPO_NAME }}
+          ECR_REPOSITORY: ${{ inputs.ECR_REPOSITORY }}
         run: |
           IMAGE_ENV=$([ "$GITHUB_REF" = "refs/heads/main" ] && echo "prod" || echo "dev")
           IMAGE_TAG="${IMAGE_ENV}-${{ steps.commit-sha.outputs.COMMIT_SHORT_SHA }}"
@@ -122,37 +134,37 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           echo "FULL_IMAGE_URI=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-      - name: Update ECS Schedule Tasks # It only runs when there are APPs specified (SUFFIX)
-        if: ${{ inputs.APP_NAME_SUFFIX != '' }}
-        id: update-schedules
+      - name: Deploy ECS Schedule Tasks
+        if: ${{ inputs.DEPLOY_SCHEDULED_TASK == true }}
+        id: deploy-schedules
         run: |          
           echo "Updating Task Definitions"
           export IFS=";"
-          SUFFIXES="${{ inputs.APP_NAME_SUFFIX }}"
+          SUFFIXES="${{ inputs.EXECUTION_NAME }}"
           for app in $SUFFIXES; do
             if ! aws ecs describe-task-definition \
-              --task-definition ${{ inputs.APP_NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${app} \
+              --task-definition ${{ inputs.NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${app} \
               --region=${{ inputs.AWS_DEFAULT_REGION }} &> /dev/null; then
               echo "WARNING: Task definition $TASK_DEFINITION does not exist."
             else
               echo "Updating Task-Definition for: ${app} ..."
-              TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition ${{ inputs.APP_NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${app} --region=${{ inputs.AWS_DEFAULT_REGION }})
+              TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition ${{ inputs.NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${app} --region=${{ inputs.AWS_DEFAULT_REGION }})
               NEW_TASK_DEFINITION=$(echo $TASK_DEFINITION | jq --arg IMAGE "${{ steps.build.outputs.FULL_IMAGE_URI }}" '.taskDefinition | .containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn) | del(.revision) | del(.status) | del(.requiresAttributes) | del(.compatibilities) | del(.registeredAt) | del(.registeredBy)')
               aws ecs register-task-definition --region ${{ inputs.AWS_DEFAULT_REGION }} --cli-input-json "$NEW_TASK_DEFINITION"
             fi
           done
 
-      - name: Render Amazon ECS Service Task Definition # It only runs when there is an ECS_SERVICE_NAME specified.
-        if: ${{ inputs.ECS_SERVICE_NAME != '' }}
+      - name: Render Amazon ECS Service Task Definition # It only runs when there is an SERVICE_NAME specified.
+        if: ${{ inputs.DEPLOY_ECS_SERVICE == true }}
         id: render-web-container
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:          
-          task-definition-family: ${{ inputs.APP_NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${{ inputs.ECS_SERVICE_NAME }}
-          container-name: ${{ inputs.APP_NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${{ inputs.ECS_SERVICE_NAME }}
+          task-definition-family: ${{ inputs.NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${{ inputs.SERVICE_NAME }}
+          container-name: ${{ inputs.NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${{ inputs.SERVICE_NAME }}
           image: ${{ steps.build.outputs.FULL_IMAGE_URI }}
 
       - name: Generate appspec.yaml dynamically
-        if: ${{ inputs.ECS_SERVICE_NAME != '' }}
+        if: ${{ inputs.DEPLOY_ECS_SERVICE == true }}
         id: generate-appspec
         run: |
           cat <<EOF > appspec.yaml
@@ -161,19 +173,19 @@ jobs:
             - TargetService:
                 Type: AWS::ECS::Service
                 Properties:
-                  TaskDefinition: "${{ inputs.APP_NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${{ inputs.ECS_SERVICE_NAME }}"
+                  TaskDefinition: "${{ inputs.NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${{ inputs.SERVICE_NAME }}"
                   LoadBalancerInfo:
-                    ContainerName: "${{ inputs.APP_NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${{ inputs.ECS_SERVICE_NAME }}"
+                    ContainerName: "${{ inputs.NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${{ inputs.SERVICE_NAME }}"
                     ContainerPort: 80
           EOF
 
       - name: Deploy to Amazon ECS service
-        if: ${{ inputs.ECS_SERVICE_NAME != '' && (steps.commit-sha.outputs.TASK_ENV == 'prod' || ( steps.commit-sha.outputs.TASK_ENV == 'dev' && inputs.ECS_DEV_DEPLOY == true )) }}
+        if: ${{ inputs.DEPLOY_ECS_SERVICE == true && (steps.commit-sha.outputs.TASK_ENV == 'prod' || ( steps.commit-sha.outputs.TASK_ENV == 'dev' && inputs.ECS_DEV_DEPLOY == true )) }}
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.render-web-container.outputs.task-definition }}
-          service: ${{ inputs.APP_NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${{ inputs.ECS_SERVICE_NAME }}
+          service: ${{ inputs.NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${{ inputs.SERVICE_NAME }}
           cluster: ${{ inputs.ECS_CLUSTER_NAME }}
           wait-for-service-stability: true
-          codedeploy-application: ${{ inputs.APP_NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${{ inputs.ECS_SERVICE_NAME }}
-          codedeploy-deployment-group: ${{ inputs.APP_NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${{ inputs.ECS_SERVICE_NAME }}
+          codedeploy-application: ${{ inputs.NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${{ inputs.SERVICE_NAME }}
+          codedeploy-deployment-group: ${{ inputs.NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${{ inputs.SERVICE_NAME }}

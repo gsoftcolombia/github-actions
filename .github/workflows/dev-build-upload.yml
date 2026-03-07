@@ -1,0 +1,26 @@
+name: Demo Deployment Workflow
+
+on:
+  push:
+    branches:
+    - main
+  pull_request:
+    branches:
+    - main
+
+jobs:
+  build-push:
+    uses: .github/workflows/docker-build-upload.yml@${{ github.ref_name }}
+    with:
+      AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION }}
+      AWS_ROLE_TO_ASSUME: ${{ vars.AWS_ROLE_TO_ASSUME }}
+      ECR_REPOSITORY: 'gs-sandbox-github-actions'
+      NAME_PREFIX: 'gs-sandbox'
+      
+      DEPLOY_SCHEDULED_TASK: false # Only when you want to deploy scheduled tasks for the app
+      EXECUTION_NAME: 'github-actions-schedule' # It can be a list, only when you want to deploy scheduled tasks
+      
+      DEPLOY_ECS_SERVICE: false # Only when you want to deploy a ecs service for the app
+      SERVICE_NAME: 'github-actions-service' # Only when you want to deploy a ecs service
+      ECS_CLUSTER_NAME: 'gs-sandbox-ecs-cluster' # Only when you want to deploy a ecs service
+      ECS_DEV_DEPLOY: false # Only when you want to deploy a dev ecs service for the app
