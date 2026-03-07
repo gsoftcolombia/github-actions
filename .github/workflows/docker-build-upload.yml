@@ -150,7 +150,7 @@ jobs:
             else
               echo "Updating Task-Definition for: ${execution_name} ..."
               TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition ${{ inputs.NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${execution_name} --region=${{ inputs.AWS_DEFAULT_REGION }})
-              updated_task_definition=$(echo $TASK_DEFINITION | jq --slurpfile config .config/${execution_name}.json '.taskDefinition |= . * $config[0]')
+              updated_task_definition=$(echo $TASK_DEFINITION | jq --slurpfile config .config/${execution_name}.json '.taskDefinition as $base | $config[0] as $updates | reduce ($updates | keys[]) as $key ($base; .[$key] = $updates[$key])')
               NEW_TASK_DEFINITION=$(echo $updated_task_definition | jq --arg IMAGE "${{ steps.build.outputs.FULL_IMAGE_URI }}" '.containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn) | del(.revision) | del(.status) | del(.requiresAttributes) | del(.compatibilities) | del(.registeredAt) | del(.registeredBy)')
               aws ecs register-task-definition --region ${{ inputs.AWS_DEFAULT_REGION }} --cli-input-json "$NEW_TASK_DEFINITION"
             fi
