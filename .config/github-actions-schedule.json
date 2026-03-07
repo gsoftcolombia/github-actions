@@ -9,7 +9,7 @@
             "command": [
                 "/bin/bash",
                 "-c",
-                "echo bootstrap task; exit 0"
+                "echo test performed; exit 0"
             ],
             "environment": [],
             "mountPoints": [],
@@ -24,7 +24,5 @@
             },
             "systemControls": []
         }
-    ],
-    "cpu": "256",
-    "memory": "512"
+    ]
 }
