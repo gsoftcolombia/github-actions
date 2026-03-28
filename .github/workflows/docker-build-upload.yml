@@ -142,6 +142,12 @@ jobs:
           export IFS=";"
           list_execution_name="${{ inputs.EXECUTION_NAME }}"
           for execution_name in $list_execution_name; do
+            config_file=".config/${execution_name}.json"
+            if [ ! -f "$config_file" ]; then
+              echo "ERROR: Missing scheduled task config file: $config_file"
+              exit 1
+            fi
+
             if ! aws ecs describe-task-definition \
               --task-definition ${{ inputs.NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${execution_name} \
               --region=${{ inputs.AWS_DEFAULT_REGION }} &> /dev/null; then
@@ -150,8 +156,22 @@ jobs:
             else
               echo "Updating Task-Definition for: ${execution_name} ..."
               TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition ${{ inputs.NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${execution_name} --region=${{ inputs.AWS_DEFAULT_REGION }})
-              updated_task_definition=$(echo $TASK_DEFINITION | jq --slurpfile config .config/${execution_name}.json '.taskDefinition as $base | $config[0] as $updates | reduce ($updates | keys[]) as $key ($base; .[$key] = $updates[$key])')
-              NEW_TASK_DEFINITION=$(echo $updated_task_definition | jq --arg IMAGE "${{ steps.build.outputs.FULL_IMAGE_URI }}" '.containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn) | del(.revision) | del(.status) | del(.requiresAttributes) | del(.compatibilities) | del(.registeredAt) | del(.registeredBy)')
+              updated_task_definition=$(echo "$TASK_DEFINITION" | jq --slurpfile config ".config/${execution_name}.json" '
+                .taskDefinition as $base
+                | ($config[0] // {}) as $updates
+                | ($updates.containerDefinitions // []) as $container_updates
+                | ($base * ($updates | del(.containerDefinitions))) as $merged
+                | if ($container_updates | length) > 0 then
+                    $merged
+                    | .containerDefinitions = [
+                        range(0; ($merged.containerDefinitions | length)) as $index
+                        | (($merged.containerDefinitions[$index] // {}) * ($container_updates[$index] // {}))
+                      ]
+                  else
+                    $merged
+                  end
+              ')
+              NEW_TASK_DEFINITION=$(echo "$updated_task_definition" | jq --arg IMAGE "${{ steps.build.outputs.FULL_IMAGE_URI }}" '.containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn) | del(.revision) | del(.status) | del(.requiresAttributes) | del(.compatibilities) | del(.registeredAt) | del(.registeredBy)')
               aws ecs register-task-definition --region ${{ inputs.AWS_DEFAULT_REGION }} --cli-input-json "$NEW_TASK_DEFINITION"
             fi
           done
@@ -160,10 +180,12 @@ jobs:
         if: ${{ inputs.DEPLOY_ECS_SERVICE == true }}
         id: render-web-container
         uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:          
+        with:
           task-definition-family: ${{ inputs.NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${{ inputs.SERVICE_NAME }}
           container-name: ${{ inputs.NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${{ inputs.SERVICE_NAME }}
           image: ${{ steps.build.outputs.FULL_IMAGE_URI }}
+          environment-variables: |
+            ENVIRONMENT=${{ steps.commit-sha.outputs.TASK_ENV }}
 
       - name: Generate appspec.yaml dynamically
         if: ${{ inputs.DEPLOY_ECS_SERVICE == true }}

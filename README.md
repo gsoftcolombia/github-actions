@@ -8,6 +8,12 @@ This is the main repo where our github actions and also general technical docume
 
 This reusable workflow builds a Dockerfile located in the root of the project, pushes the new Docker image to an ECR Registry, and optionally updates ECS task definitions for services or scheduled tasks.
 
+For scheduled tasks, the caller repository can define runtime overrides under `.config/`:
+
+- Scheduled tasks must provide `.config/<execution-name>.json`.
+
+The file is merged with the current active task definition before the image tag is updated, so the application repository owns the scheduled-task runtime fields without Terraform managing them.
+
 #### Usage
 
 To use this workflow, call it from another workflow file as shown in `.github/workflows/dev-build-upload.yml`:
