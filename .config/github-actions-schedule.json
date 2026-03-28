@@ -1,12 +1,6 @@
 {
   "containerDefinitions": [
     {
-      "secrets": [
-        {
-          "name": "secrets",
-          "valueFrom": "/dev/app/demo-secret"
-        }
-      ]
     }
   ]
 }
