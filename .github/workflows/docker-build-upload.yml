@@ -148,6 +148,9 @@ jobs:
               exit 1
             fi
 
+            # Replace __ENV__ placeholder in config file with actual environment (dev/prod)
+            sed -i "s/__ENV__/${{ steps.commit-sha.outputs.TASK_ENV }}/g" "$config_file"
+
             if ! aws ecs describe-task-definition \
               --task-definition ${{ inputs.NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${execution_name} \
               --region=${{ inputs.AWS_DEFAULT_REGION }} &> /dev/null; then
