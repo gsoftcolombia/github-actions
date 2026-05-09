@@ -14,6 +14,12 @@ For scheduled tasks, the caller repository can define runtime overrides under `.
 
 The file is merged with the current active task definition before the image tag is updated, so the application repository owns the scheduled-task runtime fields without Terraform managing them.
 
+### Schedule Tasks expect a .config/json file while not services
+
+This is mainly created because there has been a requirement of some scheduled applications that use the approach of have secrets or ssm parameters mounted from the container definition. On the other hand it is expected that services don't have such requirements because all services use entrypoints that pulls the secrets before start. The only envvar sent is the ENVIRONMENT to identify which parameters to pull.
+
+I think that ideally, we should remove the concept of mounting secrets and instead, use entrypoints.
+
 #### Usage
 
 To use this workflow, call it from another workflow file as shown in `.github/workflows/dev-build-upload.yml`:
