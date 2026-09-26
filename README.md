@@ -14,6 +14,15 @@ For scheduled tasks, the caller repository can define runtime overrides under `.
 
 The file is merged with the current active task definition before the image tag is updated, so the application repository owns the scheduled-task runtime fields without Terraform managing them.
 
+### Deploying the same image to multiple ECS services
+
+The Docker image is built and pushed to ECR only once, in the `build-push` job. `SERVICE_NAME` (like
+`EXECUTION_NAME`) accepts a list separated by `;`, e.g. `lh-revslider;pc-epco-rvsl` — this is how
+`revslider` deploys the same image to both the `lugo` and `pc-epco` ECS services. A separate
+`deploy-ecs-service` job runs the render/appspec/deploy steps once per service name, in parallel,
+via a matrix strategy sourced from the `build-push` job's outputs. This keeps the build/push effort
+to a single run regardless of how many services consume that image.
+
 ### Schedule Tasks expect a .config/json file while not services
 
 This is mainly created because there has been a requirement of some scheduled applications that use the approach of have secrets or ssm parameters mounted from the container definition. On the other hand it is expected that services don't have such requirements because all services use entrypoints that pulls the secrets before start. The only envvar sent is the ENVIRONMENT to identify which parameters to pull.
@@ -65,7 +74,7 @@ jobs:
 - `DEPLOY_SCHEDULED_TASK`: Set to true to deploy scheduled tasks.
 - `EXECUTION_NAME`: Suffix for scheduled task definitions (can be a list separated by ';').
 - `DEPLOY_ECS_SERVICE`: Set to true to deploy an ECS service.
-- `SERVICE_NAME`: Name of the ECS service.
+- `SERVICE_NAME`: Name of the ECS service (can be a list separated by ';' to deploy the same image to multiple services).
 - `ECS_CLUSTER_NAME`: Name of the ECS cluster.
 - `ECS_DEV_DEPLOY`: Set to true to deploy to dev environment.
 

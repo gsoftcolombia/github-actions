@@ -14,7 +14,12 @@ name: Docker Build & Push
 #   - If there are multiple task-definitions you can add them separated by ';' e.g. customers;products
 #   - If the Action is executed from Main, it expects to update a task definition
 #     with the name {NAME_PREFIX}-prod-{EXECUTION_NAME}
-#     otherwise, {NAME_PREFIX}-dev-{EXECUTION_NAME}
+#     otherwise, {NAME_PREFIX}-dev-{EXECUTION_NAME}
+# SERVICE_NAME: Suffix/Postfix of the ECS service/task definition in AWS.
+#   - The image is built and pushed to ECR only once; if there are multiple ECS services
+#     that reuse the same image (e.g. the same revslider image deployed to two different
+#     services), add them separated by ';' e.g. lh-revslider;pc-epco-rvsl
+#   - Each service name is deployed in parallel via a matrix job.
 
 # ##### USAGE TEMPLATE #####
 # on:
@@ -74,7 +79,7 @@ on:
       SERVICE_NAME:
         required: false
         type: string
-        default: 'missing_service_name' # Only when you want to deploy a ecs service for the app
+        default: 'missing_service_name' # Only when you want to deploy a ecs service for the app, it can be a list separated by ';'
       ECS_CLUSTER_NAME:
         required: false # Required if there is SERVICE_NAME
         type: string
@@ -95,6 +100,10 @@ jobs:
       run:
         shell: bash
         working-directory: ./
+    outputs:
+      FULL_IMAGE_URI: ${{ steps.build.outputs.FULL_IMAGE_URI }}
+      TASK_ENV: ${{ steps.commit-sha.outputs.TASK_ENV }}
+      SERVICE_NAMES: ${{ steps.service-matrix.outputs.services }}
 
     steps:
       - name: Checkout the repository to the runner
@@ -179,22 +188,47 @@ jobs:
             fi
           done
 
-      - name: Render Amazon ECS Service Task Definition # It only runs when there is an SERVICE_NAME specified.
+      - name: Compute ECS service matrix # Splits SERVICE_NAME (';'-separated) into a JSON array for the deploy job.
         if: ${{ inputs.DEPLOY_ECS_SERVICE == true }}
+        id: service-matrix
+        run: |
+          IFS=';' read -ra SERVICES <<< "${{ inputs.SERVICE_NAME }}"
+          services_json=$(printf '%s\n' "${SERVICES[@]}" | jq -R . | jq -sc .)
+          echo "services=$services_json" >> $GITHUB_OUTPUT
+
+  deploy-ecs-service:
+    name: Deploy ECS Service (${{ matrix.service_name }})
+    needs: build-push
+    if: ${{ inputs.DEPLOY_ECS_SERVICE == true }}
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        service_name: ${{ fromJson(needs.build-push.outputs.SERVICE_NAMES) }}
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ inputs.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ inputs.AWS_DEFAULT_REGION }}
+
+      - name: Render Amazon ECS Service Task Definition
         id: render-web-container
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
           # Only image/environment are overwritten here; mountPoints, volumes, portMappings, etc.
           # set by Terraform (e.g. EFS volumes) are preserved automatically. See README.md.
-          task-definition-family: ${{ inputs.NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${{ inputs.SERVICE_NAME }}
-          container-name: ${{ inputs.NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${{ inputs.SERVICE_NAME }}
-          image: ${{ steps.build.outputs.FULL_IMAGE_URI }}
+          task-definition-family: ${{ inputs.NAME_PREFIX }}-${{ needs.build-push.outputs.TASK_ENV }}-${{ matrix.service_name }}
+          container-name: ${{ inputs.NAME_PREFIX }}-${{ needs.build-push.outputs.TASK_ENV }}-${{ matrix.service_name }}
+          image: ${{ needs.build-push.outputs.FULL_IMAGE_URI }}
           environment-variables: |
-            ENVIRONMENT=${{ steps.commit-sha.outputs.TASK_ENV }}
+            ENVIRONMENT=${{ needs.build-push.outputs.TASK_ENV }}
 
       - name: Generate appspec.yaml dynamically
-        if: ${{ inputs.DEPLOY_ECS_SERVICE == true }}
-        id: generate-appspec
         run: |
           cat <<EOF > appspec.yaml
           version: 0.0
@@ -202,19 +236,19 @@ jobs:
             - TargetService:
                 Type: AWS::ECS::Service
                 Properties:
-                  TaskDefinition: "${{ inputs.NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${{ inputs.SERVICE_NAME }}"
+                  TaskDefinition: "${{ inputs.NAME_PREFIX }}-${{ needs.build-push.outputs.TASK_ENV }}-${{ matrix.service_name }}"
                   LoadBalancerInfo:
-                    ContainerName: "${{ inputs.NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${{ inputs.SERVICE_NAME }}"
+                    ContainerName: "${{ inputs.NAME_PREFIX }}-${{ needs.build-push.outputs.TASK_ENV }}-${{ matrix.service_name }}"
                     ContainerPort: 80
           EOF
 
       - name: Deploy to Amazon ECS service
-        if: ${{ inputs.DEPLOY_ECS_SERVICE == true && (steps.commit-sha.outputs.TASK_ENV == 'prod' || ( steps.commit-sha.outputs.TASK_ENV == 'dev' && inputs.ECS_DEV_DEPLOY == true )) }}
+        if: ${{ needs.build-push.outputs.TASK_ENV == 'prod' || ( needs.build-push.outputs.TASK_ENV == 'dev' && inputs.ECS_DEV_DEPLOY == true ) }}
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.render-web-container.outputs.task-definition }}
-          service: ${{ inputs.NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${{ inputs.SERVICE_NAME }}
+          service: ${{ inputs.NAME_PREFIX }}-${{ needs.build-push.outputs.TASK_ENV }}-${{ matrix.service_name }}
           cluster: ${{ inputs.ECS_CLUSTER_NAME }}
           wait-for-service-stability: false
-          codedeploy-application: ${{ inputs.NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${{ inputs.SERVICE_NAME }}
-          codedeploy-deployment-group: ${{ inputs.NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${{ inputs.SERVICE_NAME }}
+          codedeploy-application: ${{ inputs.NAME_PREFIX }}-${{ needs.build-push.outputs.TASK_ENV }}-${{ matrix.service_name }}
+          codedeploy-deployment-group: ${{ inputs.NAME_PREFIX }}-${{ needs.build-push.outputs.TASK_ENV }}-${{ matrix.service_name }}
