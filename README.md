@@ -23,6 +23,14 @@ The Docker image is built and pushed to ECR only once, in the `build-push` job. 
 via a matrix strategy sourced from the `build-push` job's outputs. This keeps the build/push effort
 to a single run regardless of how many services consume that image.
 
+Each matrix entry also injects an `APP_NAME` container environment variable set to that service's
+name (in addition to the existing `ENVIRONMENT` var). Entrypoints that need per-service behavior
+(e.g. a distinct SSM parameter path per deployed instance) should read `APP_NAME` from the
+environment instead of hardcoding it, falling back to their historical static value for local/
+docker-compose runs, e.g. `APP_NAME="${APP_NAME:-lh-revslider}"`. Single-service apps don't need to
+change anything: `APP_NAME` will simply equal their existing `SERVICE_NAME`, matching what they
+already hardcode.
+
 ### Schedule Tasks expect a .config/json file while not services
 
 This is mainly created because there has been a requirement of some scheduled applications that use the approach of have secrets or ssm parameters mounted from the container definition. On the other hand it is expected that services don't have such requirements because all services use entrypoints that pulls the secrets before start. The only envvar sent is the ENVIRONMENT to identify which parameters to pull.

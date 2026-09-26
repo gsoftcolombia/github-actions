@@ -227,6 +227,7 @@ jobs:
           image: ${{ needs.build-push.outputs.FULL_IMAGE_URI }}
           environment-variables: |
             ENVIRONMENT=${{ needs.build-push.outputs.TASK_ENV }}
+            APP_NAME=${{ matrix.service_name }}
 
       - name: Generate appspec.yaml dynamically
         run: |
