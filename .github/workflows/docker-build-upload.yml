@@ -184,6 +184,8 @@ jobs:
         id: render-web-container
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
+          # Only image/environment are overwritten here; mountPoints, volumes, portMappings, etc.
+          # set by Terraform (e.g. EFS volumes) are preserved automatically. See README.md.
           task-definition-family: ${{ inputs.NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${{ inputs.SERVICE_NAME }}
           container-name: ${{ inputs.NAME_PREFIX }}-${{ steps.commit-sha.outputs.TASK_ENV }}-${{ inputs.SERVICE_NAME }}
           image: ${{ steps.build.outputs.FULL_IMAGE_URI }}

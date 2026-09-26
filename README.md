@@ -20,6 +20,16 @@ This is mainly created because there has been a requirement of some scheduled ap
 
 I think that ideally, we should remove the concept of mounting secrets and instead, use entrypoints.
 
+### EFS-backed persistent volumes are safe across deploys
+
+For ECS **services**, this workflow renders the new task definition with
+`aws-actions/amazon-ecs-render-task-definition`, which only overwrites the container's `image` and
+`environment` fields and leaves everything else (`mountPoints`, `portMappings`, `logConfiguration`,
+etc.) untouched. So if the app's task definition has an EFS volume mounted via Terraform
+(`module.ecs-service`'s `efs_volumes`, see `terraform-modules`), every PR/merge deploy from this
+workflow keeps that mount intact automatically — no changes are needed here to support stateful
+apps.
+
 #### Usage
 
 To use this workflow, call it from another workflow file as shown in `.github/workflows/dev-build-upload.yml`:
