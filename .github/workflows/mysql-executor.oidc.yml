@@ -48,7 +48,7 @@ on:
 jobs:
   mysql-execute:
     name: Executing MySQL Sync Statements.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       id-token: write
       contents: read

@@ -92,7 +92,7 @@ on:
 jobs:
   build-push:
     name: Build, Push Docker image and Update Task Definition
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       id-token: write
       contents: read
@@ -200,7 +200,7 @@ jobs:
     name: Deploy ECS Service (${{ matrix.service_name }})
     needs: build-push
     if: ${{ inputs.DEPLOY_ECS_SERVICE == true }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       id-token: write
       contents: read
